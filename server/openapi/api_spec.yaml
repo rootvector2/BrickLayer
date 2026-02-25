@@ -1,0 +1,25 @@
+openapi: 3.0.0
+info:
+  title: BrickLayer Protocol Backend API
+  version: 1.0.0
+  contact:
+    name: Naveed Khan
+    email: dxbnaveed.k@gmail.com
+  description: Early-stage protocol in active development
+
+paths:
+  /assets:
+    get:
+      summary: List tokenized assets
+      responses:
+        '200':
+          description: List of assets
+  /assets/{id}:
+    get:
+      summary: Get asset details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string 

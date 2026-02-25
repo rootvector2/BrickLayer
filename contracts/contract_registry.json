@@ -1,0 +1,9 @@
+{
+  "network": "arbitrum",
+  "contracts": {
+    "BrickLayerAsset": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "version": "v1.0.0"
+    }
+  }
+} 
