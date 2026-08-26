@@ -257,14 +257,14 @@ contract BrickLayerAsset is
             '</linearGradient></defs>',
             '<rect width="400" height="400" fill="url(#grad)"/>',
             '<text x="200" y="60" text-anchor="middle" font-size="24" fill="#e94560" font-weight="bold">',
-            asset.assetType, '</text>',
+            escapeSVG(asset.assetType), '</text>',
             '<rect x="50" y="90" width="300" height="2" fill="#533483"/>',
             '<text x="200" y="140" text-anchor="middle" font-size="18" fill="#f1f1f1">',
             'Valuation: $', formatValuation(asset.valuationUSD), '</text>',
             '<text x="200" y="180" text-anchor="middle" font-size="16" fill="', conditionColor, '">',
             'Condition: ', getConditionString(asset.condition), '</text>',
             '<text x="200" y="220" text-anchor="middle" font-size="14" fill="#a3a3a3">',
-            asset.location, '</text>',
+            escapeSVG(asset.location), '</text>',
             '<rect x="140" y="240" width="120" height="30" rx="15" fill="', 
             asset.isVerified ? '#27ae60' : '#e74c3c', '"/>',
             '<text x="200" y="262" text-anchor="middle" font-size="14" fill="white" font-weight="bold">',
@@ -286,8 +286,8 @@ contract BrickLayerAsset is
         DynamicAssetData memory asset = assetData[tokenId];
         
         string memory attributes = string(abi.encodePacked(
-            '{"trait_type":"Asset Type","value":"', asset.assetType, '"},',
-            '{"trait_type":"Location","value":"', asset.location, '"},',
+            '{"trait_type":"Asset Type","value":"', escapeJSON(asset.assetType), '"},',
+            '{"trait_type":"Location","value":"', escapeJSON(asset.location), '"},',
             '{"trait_type":"Valuation USD","value":', uint256(asset.valuationUSD).toString(), '},',
             '{"trait_type":"Condition","value":"', getConditionString(asset.condition), '"},',
             '{"trait_type":"Verified","value":"', asset.isVerified ? 'Yes' : 'No', '"},',
@@ -468,6 +468,84 @@ contract BrickLayerAsset is
             cents < 10 ? "0" : "",
             cents.toString()
         ));
+    }
+
+    // Escape a string for safe embedding inside a JSON string literal
+    function escapeJSON(string memory input) private pure returns (string memory) {
+        bytes memory data = bytes(input);
+        bytes memory buffer = new bytes(data.length * 6);
+        uint256 n = 0;
+        for (uint256 i = 0; i < data.length; i++) {
+            bytes1 c = data[i];
+            if (c == '"') {
+                buffer[n++] = '\\';
+                buffer[n++] = '"';
+            } else if (c == '\\') {
+                buffer[n++] = '\\';
+                buffer[n++] = '\\';
+            } else if (c == 0x08) {
+                buffer[n++] = '\\';
+                buffer[n++] = 'b';
+            } else if (c == 0x09) {
+                buffer[n++] = '\\';
+                buffer[n++] = 't';
+            } else if (c == 0x0a) {
+                buffer[n++] = '\\';
+                buffer[n++] = 'n';
+            } else if (c == 0x0c) {
+                buffer[n++] = '\\';
+                buffer[n++] = 'f';
+            } else if (c == 0x0d) {
+                buffer[n++] = '\\';
+                buffer[n++] = 'r';
+            } else if (uint8(c) < 0x20) {
+                buffer[n++] = '\\';
+                buffer[n++] = 'u';
+                buffer[n++] = '0';
+                buffer[n++] = '0';
+                buffer[n++] = hexChar(uint8(c) >> 4);
+                buffer[n++] = hexChar(uint8(c) & 0x0f);
+            } else {
+                buffer[n++] = c;
+            }
+        }
+        bytes memory out = new bytes(n);
+        for (uint256 j = 0; j < n; j++) {
+            out[j] = buffer[j];
+        }
+        return string(out);
+    }
+
+    // Escape a string for safe embedding inside SVG/XML text
+    function escapeSVG(string memory input) private pure returns (string memory) {
+        bytes memory data = bytes(input);
+        bytes memory buffer = new bytes(data.length * 6);
+        uint256 n = 0;
+        for (uint256 i = 0; i < data.length; i++) {
+            bytes1 c = data[i];
+            if (c == '&') {
+                buffer[n++] = '&'; buffer[n++] = 'a'; buffer[n++] = 'm'; buffer[n++] = 'p'; buffer[n++] = ';';
+            } else if (c == '<') {
+                buffer[n++] = '&'; buffer[n++] = 'l'; buffer[n++] = 't'; buffer[n++] = ';';
+            } else if (c == '>') {
+                buffer[n++] = '&'; buffer[n++] = 'g'; buffer[n++] = 't'; buffer[n++] = ';';
+            } else if (c == '"') {
+                buffer[n++] = '&'; buffer[n++] = 'q'; buffer[n++] = 'u'; buffer[n++] = 'o'; buffer[n++] = 't'; buffer[n++] = ';';
+            } else if (c == "'") {
+                buffer[n++] = '&'; buffer[n++] = '#'; buffer[n++] = '3'; buffer[n++] = '9'; buffer[n++] = ';';
+            } else {
+                buffer[n++] = c;
+            }
+        }
+        bytes memory out = new bytes(n);
+        for (uint256 j = 0; j < n; j++) {
+            out[j] = buffer[j];
+        }
+        return string(out);
+    }
+
+    function hexChar(uint8 value) private pure returns (bytes1) {
+        return value < 10 ? bytes1(uint8(48 + value)) : bytes1(uint8(87 + value));
     }
 
     function _exists(uint256 tokenId) internal view returns (bool) {
