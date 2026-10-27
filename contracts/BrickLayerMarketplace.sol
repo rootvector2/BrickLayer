@@ -50,6 +50,7 @@ contract BrickLayerMarketplace is ReentrancyGuard, Pausable, Ownable {
     mapping(uint256 => Listing) public listings;
     mapping(uint256 => Auction) public auctions;
     mapping(address => mapping(uint256 => uint256)) public nftToListing; // nftContract => tokenId => listingId
+    mapping(address => uint256) public pendingReturns; // outbid refunds claimable via withdrawPendingReturns
 
     // Events
     event NFTListed(
@@ -100,6 +101,11 @@ contract BrickLayerMarketplace is ReentrancyGuard, Pausable, Ownable {
         uint256 indexed listingId,
         address indexed winner,
         uint256 winningBid
+    );
+
+    event RefundWithdrawn(
+        address indexed bidder,
+        uint256 amount
     );
 
     event PlatformFeeUpdated(uint256 newFeeBasisPoints);
@@ -327,10 +333,9 @@ contract BrickLayerMarketplace is ReentrancyGuard, Pausable, Ownable {
         
         require(msg.value >= minBid, "Bid too low");
 
-        // Refund previous highest bidder
+        // Credit previous highest bidder; refunds are pulled via withdrawPendingReturns
         if (auction.highestBidder != address(0)) {
-            (bool refunded, ) = auction.highestBidder.call{value: auction.highestBid}("");
-            require(refunded, "Failed to refund previous bidder");
+            pendingReturns[auction.highestBidder] += auction.highestBid;
         }
 
         auction.highestBid = msg.value;
@@ -376,6 +381,21 @@ contract BrickLayerMarketplace is ReentrancyGuard, Pausable, Ownable {
         } else {
             emit AuctionEnded(listingId, address(0), 0);
         }
+    }
+
+    /**
+     * @dev Withdraw refunds owed to the caller from being outbid
+     */
+    function withdrawPendingReturns() public nonReentrant {
+        uint256 amount = pendingReturns[msg.sender];
+        require(amount > 0, "Nothing to withdraw");
+
+        pendingReturns[msg.sender] = 0;
+
+        (bool sent, ) = msg.sender.call{value: amount}("");
+        require(sent, "Failed to withdraw");
+
+        emit RefundWithdrawn(msg.sender, amount);
     }
 
     /**
