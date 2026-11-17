@@ -354,6 +354,15 @@ contract BrickLayerMarketplace is ReentrancyGuard, Pausable, Ownable {
         if (auction.highestBidder != address(0)) {
             IERC721 nft = IERC721(auction.nftContract);
 
+            // Seller no longer owns the token or revoked approval: refund the bid
+            if (!_sellerCanDeliver(nft, auction.seller, auction.tokenId)) {
+                (bool refunded, ) = auction.highestBidder.call{value: auction.highestBid}("");
+                require(refunded, "Failed to refund highest bidder");
+
+                emit AuctionEnded(listingId, address(0), 0);
+                return;
+            }
+
             // Calculate fees
             uint256 platformFee = (auction.highestBid * platformFeeBasisPoints) / 10000;
             uint256 sellerProceeds = auction.highestBid - platformFee;
@@ -376,6 +385,26 @@ contract BrickLayerMarketplace is ReentrancyGuard, Pausable, Ownable {
         } else {
             emit AuctionEnded(listingId, address(0), 0);
         }
+    }
+
+    /**
+     * @dev Whether the seller still owns the token and the marketplace may transfer it
+     */
+    function _sellerCanDeliver(
+        IERC721 nft,
+        address seller,
+        uint256 tokenId
+    ) private view returns (bool) {
+        try nft.ownerOf(tokenId) returns (address tokenOwner) {
+            if (tokenOwner != seller) {
+                return false;
+            }
+        } catch {
+            return false;
+        }
+        return
+            nft.isApprovedForAll(seller, address(this)) ||
+            nft.getApproved(tokenId) == address(this);
     }
 
     /**
